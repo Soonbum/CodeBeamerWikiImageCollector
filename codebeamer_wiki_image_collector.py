@@ -1,60 +1,54 @@
 import re
 import requests
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium import webdriver
+#import docx
+#from docx.shared import Inches,Cm
 
-########## CodeBeamer 관련 클래스
-class ProjectMixin:    
-    def getProjects(self):
-        return self.get('/projects')
-        
-    def getProject(**kwargs):
-        if not len(kwargs) == 1: 
-            raise Exception('getProject method takes one argument in : name, id')
-        elif kwargs.get('name', None):
-            return self.get(f"/project/{kwargs['name']}")
-        elif kwargs.get('id', None):
-            return self.get(f"/project/{kwargs['id']}")
-        else:
-            raise Exception('getProject method takes one argument in : name, id')
+#doc_path = 'D:/cp_code/HKMC_ccIC24_Project_-_CLU-HUD_RS.docx'
+#doc = docx.Document(doc_path)
+#search_string = "GUI"
 
-class Codebeamer(ProjectMixin):
-    def __init__(self, url, login, password):
-        self.base_url = url
-        self.auth = (login, password)
+url = 'http://avncb.lge.com:8080/cb/wiki/'
 
-    def get(self, uri):
-        url = self.base_url + uri
-        res = requests.get(url, auth=self.auth, verify=True)
-        if res.status_code == 200:
-            return json.loads(res.content)
-        else:
-            print(f"Warning : GET error ({url})")
-            return json.loads(res.content)
+# for paragraph in doc.paragraphs:
+#     if not paragraph._element.xpath('.//w:tbl'):
+#         if search_string in paragraph.text:
+#             wikipage = str(paragraph._p.xpath(".//w:hyperlink/@w:tooltip"))
+#             matches = re.search(r'\d+', wikipage)
 
-    def put(self, uri, data):
-        url = self.base_url + uri
-        res = requests.put(url, json=data, auth=self.auth, verify=True)
-        if res.status_code == 200:
-            return json.loads(res.content)
-        else:
-            print(f"Warning : PUT error ({url})")
-            return json.loads(res.content)
-
-    def post(self, uri, data):
-        url = self.base_url + uri
-        res = requests.post(url, json=data, auth=self.auth, verify=True)
-        if res.status_code == 201:
-            return json.loads(res.content)
-        else:
-            print(f"Warning : POST error ({url})")
-            return json.loads(res.content)
-
+#             if matches:
+#                 number = matches.group()
+#                 print(url+number)
+#                 url = url+number
+#             else:
+#                 print("일치하는 숫자를 찾을 수 없습니다.")
+#             # print(paragraph.text)
 
 id = ''         # ID
-passwd = ''     # 패스워드
-wiki_link = 'http://avncb.lge.com:8080/cb/wiki/98802445'
+passwd = '!'     # 패스워드
+# wiki_link = 'http://avncb.lge.com:8080/cb/wiki/98802445'
+wiki_link = url
+base_url = 'http://avncb.lge.com:8080'
 
-cb = Codebeamer(url='http://avncb.lge.com:8080', login=id, password=passwd)
-res = requests.get(url=wiki_link, auth=cb.auth, verify=True)
+#드라이버
+driver = webdriver.Chrome(ChromeDriverManager().install())
+driver.get(wiki_link)
+driver.find_element_by_id('user').send_keys(id)
+driver.find_element_by_id('password').send_keys(passwd)
+driver.find_element_by_xpath('//*[@id="loginForm"]/div/div[2]/input').click()
+
+s = requests.Session()
+headers = {
+    'User-Agent' : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36'
+}
+s.headers.update(headers)
+
+for cookie in driver.get_cookies():
+    c = {cookie['name'] : cookie['value']}
+    s.cookies.update(c)
+
+res = s.get(wiki_link)
 content = str(res.content)
 
 pattern = "<title>.*<\/title>"
@@ -77,33 +71,22 @@ while index < len(content):
         break
     index += 3
 
-download_link = cb.base_url + download_link[0][9:-2]
+download_link = base_url + download_link[0][9:-2]
 
 print("타이틀:", title)
 print("파일명:", filename)
 print("다운로드 링크:", download_link)
 
-with open(filename, 'wb') as handle:
-    response = requests.get(download_link, stream=True)
+file = open(filename, 'wb')
+response = s.get(download_link)
+if response.status_code == 200:
+    file.write(response.content)
+file.close()
 
-    if not response.ok:
-        print(response)
-    
-    for block in response.iter_content(1024):
-        if not block:
-            break
+#이미지 삽입
+# doc.add_picture(filename,width=Inches(4),height=Inches(3))
 
-        handle.write(block)
-
-# 다운로드 방법 1
-# file = open(filename, 'wb')
-# response = requests.get(download_link, stream=True)
-# if response.status_code == 200:
-#     for block in response.iter_content(1024):
-#         if not block:
-#             break
-#         file.write(block)
-# file.close()
-
-# 다운로드 방법 2
-#urllib.request.urlretrieve(download_link, filename)
+# for paragraph in doc.paragraphs:
+#     if search_string in paragraph.text:
+#         doc.add_picture('D:/cp_code/' + filename,width=Inches(4),height=Inches(3))
+#         doc.save(doc_path)
